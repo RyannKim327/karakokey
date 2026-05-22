@@ -117,7 +117,7 @@
 				const { data } = await axios.get(`${API_HOST}/play?id=${link}`);
 				console.log(data);
 				if (!data.url) {
-					toast("No data found", {
+					toast(data.error ?? "No Data Found", {
 						position: "bottom-right",
 					});
 
