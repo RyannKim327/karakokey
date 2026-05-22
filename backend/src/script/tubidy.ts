@@ -21,8 +21,12 @@ export async function play(id: string) {
 	const tubidy = Tubidy()
 	const play = await tubidy.download(id, "video")
 	if (play.play) {
-		return play.play
+		return {
+			url: play.play
+		}
 	} else {
-		return play.error ?? "Something went wrong"
+		return {
+			error: play.error ?? "Something went wrong"
+		}
 	}
 }

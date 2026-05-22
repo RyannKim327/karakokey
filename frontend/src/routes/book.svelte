@@ -15,13 +15,11 @@
 	let search = "";
 	let activated = false;
 	let loading = true;
-
+	let isSearching = false;
 	let songs: Record<string, any>[] = [];
 
 	onMount(() => {
-		socket = new WebSocket(
-			`${WS_HOST}/${params.id.toLowerCase()}?role=book`,
-		);
+		socket = new WebSocket(`${WS_HOST}/${params.id.toLowerCase()}?role=book`);
 
 		socket.onopen = () => {
 			console.log("Initiated");
@@ -71,8 +69,10 @@
 	}
 
 	async function searchSong() {
+		isSearching = true;
 		const { data } = await axios.get(`${API_HOST}/search?q=${search}`);
 		songs = data;
+		isSearching = false;
 	}
 </script>
 
@@ -130,37 +130,45 @@
 			</div>
 
 			<div class="space-y-3">
-				{#each songs as song}
-					<div
-						class="group flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-5 py-4 backdrop-blur-md transition hover:border-red-500/40 hover:bg-white/10"
-					>
-						<div class="min-w-0">
-							<h2 class="truncate text-lg font-semibold text-white">
-								{song.title}
-							</h2>
-
-							<p class="text-sm text-zinc-500 truncate">Ready to queue</p>
-						</div>
-
-						<button
-							class="ml-4 flex h-11 w-11 items-center justify-center rounded-xl bg-red-500 text-2xl font-bold text-white shadow-lg shadow-red-500/20 transition hover:scale-105 hover:bg-red-400 active:scale-95"
-							onclick={() =>
-								send({
-									title: song.title,
-									url: song.id,
-								})}
-						>
-							+
-						</button>
-					</div>
-				{/each}
-
-				{#if songs.length === 0}
+				{#if isSearching}
 					<div
 						class="rounded-2xl border border-dashed border-white/10 bg-black/20 p-10 text-center text-zinc-500"
 					>
-						No songs found.
+						Please Wait
 					</div>
+				{:else}
+					{#each songs as song}
+						<div
+							class="group flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-5 py-4 backdrop-blur-md transition hover:border-red-500/40 hover:bg-white/10"
+						>
+							<div class="min-w-0">
+								<h2 class="truncate text-lg font-semibold text-white">
+									{song.title}
+								</h2>
+
+								<p class="text-sm text-zinc-500 truncate">Ready to queue</p>
+							</div>
+
+							<button
+								class="ml-4 flex h-11 w-11 items-center justify-center rounded-xl bg-red-500 text-2xl font-bold text-white shadow-lg shadow-red-500/20 transition hover:scale-105 hover:bg-red-400 active:scale-95"
+								onclick={() =>
+									send({
+										title: song.title,
+										url: song.id,
+									})}
+							>
+								+
+							</button>
+						</div>
+					{/each}
+
+					{#if songs.length === 0}
+						<div
+							class="rounded-2xl border border-dashed border-white/10 bg-black/20 p-10 text-center text-zinc-500"
+						>
+							No songs found.
+						</div>
+					{/if}
 				{/if}
 			</div>
 		</div>
