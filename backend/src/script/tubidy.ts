@@ -26,7 +26,7 @@ export async function play(id: string) {
 		}
 	} else {
 		return {
-			error: play.error ?? "Something went wrong"
+			error: "Something went wrong"
 		}
 	}
 }
