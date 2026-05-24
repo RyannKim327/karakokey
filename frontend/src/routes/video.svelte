@@ -1,7 +1,6 @@
 <script lang="ts">
 	import Logo from "@/assets/karakokey.png";
 	import { push } from "svelte-spa-router";
-	import { onMount, onDestroy } from "svelte";
 	import { fade } from "svelte/transition";
 	import { API_HOST, WS_HOST } from "@/lib/config";
 	import { YIN } from "pitchfinder";
@@ -14,22 +13,24 @@
 		play?: boolean;
 		check?: boolean;
 	}
-	export let params: { id: string };
+
+	let { params }: { params: { id: string } } = $props();
 
 	const yin = YIN();
 
 	let socket: WebSocket;
-	let sources: SongInfo[] = [];
-	let source = "";
-	let id = "";
-	let video: HTMLVideoElement;
-	let paused = false;
+	let sources = $state<SongInfo[]>([]);
+	let source = $state("");
+	let id = $state("");
+	let video = $state<HTMLVideoElement>();
+	let paused = $state(false);
 	let currentBlobUrl: string | null = null;
-	let score: number | null = null;
-	let showScore = false;
-	let started = false;
-	let framesWithPitch = 0;
-	let totalFrames = 0;
+	let score = $state<number | null>(null);
+	let showScore = $state(false);
+	let started = $state(false);
+	let framesWithPitch = $state(0);
+	let totalFrames = $state(0);
+	// These don't need to be reactive — no template binding
 	let analyzerActive = false;
 	let micStream: MediaStream | null = null;
 
@@ -53,19 +54,15 @@
 
 	function generateScore() {
 		video?.pause();
-		if (totalFrames > 0) {
-			// Calculate score based on percentage of frames where pitch was detected
-			// We use a multiplier to make it a bit more generous
+		if (totalFrames > 10) {
 			const ratio = framesWithPitch / totalFrames;
-			score = Math.min(100, Math.floor(ratio * 300)); // 33% detection = 100 score
+			score = Math.min(100, Math.floor(ratio * 300));
 		} else {
-			score = Math.floor(Math.random() * 20) + 10; // Low random score if no data
+			score = Math.floor(Math.random() * 20) + 10;
 		}
 
 		showScore = true;
 		analyzerActive = false;
-
-		// Reset counters for next song
 		framesWithPitch = 0;
 		totalFrames = 0;
 
@@ -81,10 +78,8 @@
 
 		const audio = new AudioContext();
 		const src = audio.createMediaStreamSource(stream);
-
 		const analyzer = audio.createAnalyser();
 		analyzer.fftSize = 2048;
-
 		src.connect(analyzer);
 
 		const buffer = new Float32Array(analyzer.fftSize);
@@ -94,16 +89,10 @@
 				audio.close();
 				return;
 			}
-
 			analyzer.getFloatTimeDomainData(buffer);
-
 			const pitch = yin(buffer);
-
-			if (pitch && pitch > 50 && pitch < 2000) {
-				framesWithPitch++;
-			}
+			if (pitch && pitch > 50 && pitch < 2000) framesWithPitch++;
 			totalFrames++;
-
 			requestAnimationFrame(tick);
 		}
 
@@ -115,18 +104,14 @@
 		if (sources.length > 0) {
 			try {
 				const { data } = await axios.get(`${API_HOST}/play?id=${link}`);
-				console.log(data);
 				if (!data.url) {
-					toast(data.error ?? "No Data Found", {
-						position: "bottom-right",
-					});
-
+					toast(data.error ?? "No Data Found", { position: "bottom-right" });
 					nextSong();
 					return;
 				}
 				source = data.url;
 				setTimeout(() => {
-					if (video) video.play();
+					video?.play();
 				}, 500);
 
 				if (!micStream) {
@@ -134,6 +119,7 @@
 						audio: true,
 					});
 				}
+
 				audioAnalyzer(micStream);
 			} catch (e) {
 				console.log(e);
@@ -149,22 +135,27 @@
 		analyzerActive = false;
 		framesWithPitch = 0;
 		totalFrames = 0;
-
-		if (sources.length > 0) {
-			getUrl(id);
-		} else {
-			source = "";
-			id = "";
-			started = false;
-		}
-		sources.shift();
+		sources = sources.slice(1); // reactive-safe removal
+		setTimeout(() => {
+			if (sources.length > 0) {
+				id = sources[0].url;
+				getUrl(id);
+			} else {
+				source = "";
+				id = "";
+				started = false;
+			}
+		}, 500);
 	}
 
 	function nativeNextSong() {
 		paused = true;
 		video?.pause();
-		generateScore();
-		source = "";
+		generateScore(); // shows score for 5s and hides it
+
+		// Capture next song before mutating
+		const nextSongs = sources.slice(1);
+		sources = nextSongs;
 
 		setTimeout(() => {
 			if (sources.length > 0) {
@@ -175,15 +166,12 @@
 				id = "";
 				started = false;
 			}
-			sources.shift();
-		}, 5000);
+		}, 5000); // aligns with generateScore's hide timeout
 	}
-
 	function startPlay() {
 		if (!started && sources.length > 0) {
 			id = sources[0].url;
 			getUrl(id);
-			sources.shift();
 			started = true;
 		}
 	}
@@ -200,21 +188,18 @@
 				video?.pause();
 			}
 		}
-		if (e.code === "ArrowRight") {
-			nextSong();
-		}
-		if (e.code === "KeyF") {
-			fullscreen();
-		}
+		if (e.code === "ArrowRight") nextSong();
+		if (e.code === "KeyF") fullscreen();
 	}
 
-	onMount(() => {
-		window.addEventListener("keydown", handleKeydown);
-		socket = new WebSocket(`${WS_HOST}/${params.id.toLowerCase()}?role=video`);
+	function socketDetection() {
+		socket = new WebSocket(`${WS_HOST}/${params.id.toLowerCase()}`);
+
 		socket.onopen = () => {
 			socket.send(JSON.stringify({ play: true }));
 			fullscreen();
 		};
+
 		socket.onmessage = (event: MessageEvent) => {
 			const data: SongInfo = JSON.parse(event.data);
 			if (data.check) {
@@ -227,7 +212,9 @@
 				fullscreen();
 			}
 		};
+
 		socket.onerror = (error: Event) => console.error("Socket error:", error);
+
 		socket.onclose = (event) => {
 			console.log("Socket disconnected", event.reason);
 			if (event.code === 1008) {
@@ -238,18 +225,23 @@
 				push("/");
 			}
 		};
-	});
-
-	onDestroy(() => {
-		window.removeEventListener("keydown", handleKeydown);
-		if (socket) socket.close();
-		if (currentBlobUrl) URL.revokeObjectURL(currentBlobUrl);
-		analyzerActive = false;
-	});
+	}
 
 	async function fullscreen() {
 		await document.documentElement.requestFullscreen();
 	}
+
+	$effect(() => {
+		window.addEventListener("keydown", handleKeydown);
+		socketDetection();
+
+		return () => {
+			window.removeEventListener("keydown", handleKeydown);
+			if (socket) socket.close();
+			if (currentBlobUrl) URL.revokeObjectURL(currentBlobUrl);
+			analyzerActive = false;
+		};
+	});
 </script>
 
 <div class="relative w-full h-screen overflow-hidden bg-black">
@@ -340,7 +332,9 @@
 		[text-shadow:_-1px_-1px_0_#000,_1px_-1px_0_#000,_-1px_1px_0_#000,_1px_1px_0_#000]"
 				>
 					{#if sources.length > 0}
-						{sources.map((s) => s.title).join(", ")}
+						{sources
+							.map((s) => `${s.title.title} - ${s.title.artist}`)
+							.join(", ")}
 					{:else}
 						No songs in queue yet...
 					{/if}
