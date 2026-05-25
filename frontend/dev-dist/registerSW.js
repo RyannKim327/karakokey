@@ -1,1 +1,0 @@
-if('serviceWorker' in navigator) navigator.serviceWorker.register('/karakokey/dev-sw.js?dev-sw', { scope: '/karakokey/', type: 'classic' })
