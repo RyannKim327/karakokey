@@ -1,0 +1,1 @@
+{"name":"Karakokey","short_name":"Karakokey","description":"A digitalized KTV Machine","start_url":"/karakokey/","display":"standalone","background_color":"#ffffff","theme_color":"#121212","lang":"en","scope":"/karakokey/","icons":[{"src":"karakokey.png","sizes":"192x192","type":"image/png"},{"src":"karakokey.png","sizes":"512x512","type":"image/png"}]}
