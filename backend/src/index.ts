@@ -2,6 +2,7 @@ import express from "express"
 import cors from "cors"
 import { createServer } from "http"
 import { WebSocketServer, WebSocket } from "ws"
+import { spawn } from "child_process"
 import { play, search } from "./script/tubidy"
 
 const app = express()
@@ -51,6 +52,59 @@ const channels = new Map<string, Set<ExtendedWebSocket>>()
 
 wss.on("connection", (ws: ExtendedWebSocket, req) => {
 	const url = new URL(req.url || "", `https://${req.headers.host}`)
+	const streamKey = url.searchParams.get("key")
+
+	// If a stream key is provided, handle it as a live stream connection
+	if (url.pathname.startsWith("/live") && streamKey) {
+		console.log(`Starting live stream relay for key: ${streamKey.substring(0, 5)}...`)
+
+		const ffmpeg = spawn("ffmpeg", [
+			"-i", "-",
+			"-c:v", "libx264",
+			"-preset", "veryfast",
+			"-tune", "zerolatency",
+			"-c:a", "aac",
+			"-ar", "44100",
+			"-b:a", "128k",
+			"-f", "flv",
+			`rtmps://live-api-s.facebook.com:443/rtmp/${streamKey}`,
+		])
+
+		ffmpeg.stderr.on("data", (data) => {
+			console.log(`FFmpeg: ${data}`)
+		})
+
+		ffmpeg.stdin.on("error", (err) => {
+			console.error("FFmpeg stdin error (skipping):", err.message)
+		})
+
+		ws.on("message", (data) => {
+			try {
+				if (ffmpeg.stdin.writable) {
+					ffmpeg.stdin.write(data)
+				}
+			} catch (err) {
+				console.error("Error writing to FFmpeg (skipping chunk):", err)
+			}
+		})
+
+		ws.on("close", () => {
+			console.log("Live stream connection closed")
+			ffmpeg.kill("SIGINT")
+		})
+
+		ffmpeg.on("close", (code) => {
+			console.log(`FFmpeg process exited with code ${code}`)
+			ws.close()
+		})
+
+		ws.on("error", (err) => {
+			console.error("Live stream WebSocket error:", err)
+		})
+
+		return
+	}
+
 	const channel = url.pathname.replace(/^\/ws\/?/, "") || "default"
 	const role = url.searchParams.get("role") || "book"
 
@@ -73,17 +127,35 @@ wss.on("connection", (ws: ExtendedWebSocket, req) => {
 	clients.add(ws)
 
 	ws.on("message", (data) => {
-		clients.forEach((client) => {
-			if (client.readyState === WebSocket.OPEN) {
-				client.send(data.toString())
-			}
-		})
+		try {
+			// Normal room messages (JSON) are broadcast to all clients in the channel
+			clients.forEach((client) => {
+				if (client.readyState === WebSocket.OPEN) {
+					client.send(data.toString())
+				}
+			})
+		} catch (err) {
+			console.error("Error broadcasting message:", err)
+		}
 	})
 
 	ws.on("close", (code, reason) => {
 		clients.delete(ws)
 		console.log(`Client (${role}) disconnected from channel: ${channel}. Code: ${code}, Reason: ${reason}`)
 	})
+
+	ws.on("error", (err) => {
+		console.error(`WebSocket error in channel ${channel} (${role}):`, err)
+	})
+})
+
+// Prevent the process from crashing on unhandled errors
+process.on("uncaughtException", (err) => {
+	console.error("CRITICAL: Uncaught Exception (skipping):", err)
+})
+
+process.on("unhandledRejection", (reason, promise) => {
+	console.error("CRITICAL: Unhandled Rejection at:", promise, "reason:", reason)
 })
 
 // ✅ Bind to 0.0.0.0 so your phone can reach it

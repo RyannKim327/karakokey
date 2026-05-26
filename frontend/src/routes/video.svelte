@@ -8,7 +8,10 @@
 	import toast, { Toaster } from "svelte-french-toast";
 
 	interface SongInfo {
-		title: string;
+		title: {
+			title: string;
+			artist: string;
+		};
 		url: string;
 		play?: boolean;
 		check?: boolean;
@@ -19,6 +22,7 @@
 	const yin = YIN();
 
 	let socket: WebSocket;
+	let streamSocket: WebSocket | null = null;
 	let sources = $state<SongInfo[]>([]);
 	let source = $state("");
 	let id = $state("");
@@ -33,6 +37,117 @@
 	// These don't need to be reactive — no template binding
 	let analyzerActive = false;
 	let micStream: MediaStream | null = null;
+	let audioContext: AudioContext | null = null;
+	let micSource: MediaStreamAudioSourceNode | null = null;
+	let micGain: GainNode | null = null;
+	let analyzerNode: AnalyserNode | null = null;
+
+	let micLevel = $state(0);
+	let monitorMic = $state(true);
+	let showCamera = $state(true);
+	let cameraVideo = $state<HTMLVideoElement>();
+
+	let streamKey = $state("");
+	let isStreaming = $state(false);
+
+	$effect(() => {
+		const hashParts = window.location.hash.split("?");
+		if (hashParts.length > 1) {
+			const searchParams = new URLSearchParams(hashParts[1]);
+			streamKey = searchParams.get("key") || "";
+		}
+	});
+
+	async function startStreaming() {
+		if (!streamKey) return;
+
+		try {
+			const displayStream = await navigator.mediaDevices.getDisplayMedia({
+				video: {
+					displaySurface: "browser",
+					frameRate: 30,
+				},
+				audio: {
+					echoCancellation: true,
+					noiseSuppression: true,
+					autoGainControl: true,
+				},
+				preferCurrentTab: true,
+				selfBrowserSurface: "include",
+				systemAudio: "include",
+				monitorTypeSurfaces: "exclude",
+				surfaceSwitching: "include",
+			});
+
+			if (!audioContext) audioContext = new AudioContext();
+			setupMicAudio();
+
+			const dest = audioContext.createMediaStreamDestination();
+			let displaySource: MediaStreamAudioSourceNode | null = null;
+
+			if (displayStream.getAudioTracks().length > 0) {
+				displaySource = audioContext.createMediaStreamSource(displayStream);
+				displaySource.connect(dest);
+			}
+
+			if (micGain) {
+				micGain.connect(dest);
+			}
+
+			const combinedStream = new MediaStream([
+				...displayStream.getVideoTracks(),
+				...dest.stream.getAudioTracks(),
+			]);
+
+			const mediaRecorder = new MediaRecorder(combinedStream, {
+				mimeType: "video/webm;codecs=vp8,opus",
+				videoBitsPerSecond: 3000000,
+			});
+
+			streamSocket = new WebSocket(`${WS_HOST}/live?key=${streamKey}`);
+
+			streamSocket.onopen = () => {
+				console.log("Streaming socket opened");
+				isStreaming = true;
+				mediaRecorder.start(1000); // Send chunks every second
+				toast.success("Live stream started!");
+			};
+
+			mediaRecorder.ondataavailable = (event) => {
+				if (
+					event.data.size > 0 &&
+					streamSocket?.readyState === WebSocket.OPEN
+				) {
+					streamSocket.send(event.data);
+				}
+			};
+
+			mediaRecorder.onstop = () => {
+				isStreaming = false;
+				streamSocket?.close();
+				displayStream.getTracks().forEach((track) => track.stop());
+				if (micGain) {
+					try {
+						micGain.disconnect(dest);
+					} catch (e) {}
+				}
+				if (displaySource) {
+					try {
+						displaySource.disconnect(dest);
+					} catch (e) {}
+				}
+				toast.error("Live stream stopped");
+			};
+
+			streamSocket.onclose = () => {
+				isStreaming = false;
+				if (mediaRecorder.state !== "inactive") mediaRecorder.stop();
+			};
+		} catch (err) {
+			console.error("Error starting stream:", err);
+			toast.error("Failed to start stream. Make sure to allow screen capture.");
+		}
+	}
 
 	function getScoreMessage(s: number) {
 		if (s >= 90)
@@ -72,24 +187,51 @@
 		}, 5000);
 	}
 
+	function setupMicAudio() {
+		if (!micStream) return;
+		if (!audioContext) {
+			audioContext = new AudioContext();
+		}
+
+		if (!micSource) {
+			micSource = audioContext.createMediaStreamSource(micStream);
+			micGain = audioContext.createGain();
+			micGain.gain.value = monitorMic ? 1 : 0;
+			// micGain.connect(audioContext.destination); // Mic stream output only in live
+
+			analyzerNode = audioContext.createAnalyser();
+			analyzerNode.fftSize = 2048;
+			micSource.connect(analyzerNode);
+			micSource.connect(micGain);
+		}
+	}
+
 	function audioAnalyzer(stream: MediaStream) {
 		if (analyzerActive) return;
 		analyzerActive = true;
 
-		const audio = new AudioContext();
-		const src = audio.createMediaStreamSource(stream);
-		const analyzer = audio.createAnalyser();
-		analyzer.fftSize = 2048;
-		src.connect(analyzer);
+		setupMicAudio();
 
-		const buffer = new Float32Array(analyzer.fftSize);
+		const buffer = new Float32Array(analyzerNode!.fftSize);
 
 		function tick() {
 			if (!analyzerActive) {
-				audio.close();
 				return;
 			}
-			analyzer.getFloatTimeDomainData(buffer);
+
+			if (audioContext?.state === "suspended") {
+				audioContext.resume();
+			}
+
+			analyzerNode!.getFloatTimeDomainData(buffer);
+
+			// Calculate volume level
+			let sum = 0;
+			for (let i = 0; i < buffer.length; i++) {
+				sum += buffer[i] * buffer[i];
+			}
+			micLevel = Math.sqrt(sum / buffer.length);
+
 			const pitch = yin(buffer);
 			if (pitch && pitch > 50 && pitch < 2000) framesWithPitch++;
 			totalFrames++;
@@ -114,13 +256,7 @@
 					video?.play();
 				}, 500);
 
-				if (!micStream) {
-					micStream = await navigator.mediaDevices.getUserMedia({
-						audio: true,
-					});
-				}
-
-				audioAnalyzer(micStream);
+				if (micStream) audioAnalyzer(micStream);
 			} catch (e) {
 				console.log(e);
 			}
@@ -190,6 +326,8 @@
 		}
 		if (e.code === "ArrowRight") nextSong();
 		if (e.code === "KeyF") fullscreen();
+		if (e.code === "KeyM") monitorMic = !monitorMic;
+		if (e.code === "KeyC") showCamera = !showCamera;
 	}
 
 	function socketDetection() {
@@ -232,6 +370,37 @@
 	}
 
 	$effect(() => {
+		if (micGain) {
+			micGain.gain.value = monitorMic ? 1 : 0;
+		}
+	});
+
+	$effect(() => {
+		(async () => {
+			if (!micStream) {
+				try {
+					micStream = await navigator.mediaDevices.getUserMedia({
+						audio: true,
+						video: true,
+					});
+				} catch (e) {
+					console.warn("Failed to get video, trying audio only", e);
+					try {
+						micStream = await navigator.mediaDevices.getUserMedia({
+							audio: true,
+						});
+					} catch (e2) {
+						console.error("Failed to get audio", e2);
+						toast.error("Microphone access denied or not found");
+					}
+				}
+			}
+
+			if (micStream && cameraVideo && !cameraVideo.srcObject) {
+				cameraVideo.srcObject = micStream;
+			}
+		})();
+
 		window.addEventListener("keydown", handleKeydown);
 		socketDetection();
 
@@ -296,6 +465,25 @@
 						{params.id.toUpperCase()}
 					</p>
 				</div>
+
+				{#if streamKey && !isStreaming}
+					<button
+						class="mt-8 px-6 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-full transition transform hover:scale-105"
+						onclick={startStreaming}
+					>
+						Start Facebook Live
+					</button>
+				{:else}
+					<div class="mt-8 flex items-center gap-2">
+						{#if isStreaming}
+							<div class="w-3 h-3 bg-red-500 rounded-full animate-pulse" />
+							<span
+								class="text-red-500 font-bold uppercase tracking-widest text-sm"
+								>Live on Facebook</span
+							>
+						{/if}
+					</div>
+				{/if}
 			</div>
 		</div>
 	{/if}
@@ -346,5 +534,27 @@
 	<div
 		class="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-black/30 pointer-events-none"
 	/>
+
+	{#if showCamera && micStream}
+		<video
+			bind:this={cameraVideo}
+			autoplay
+			playsinline
+			muted
+			class="absolute bottom-6 right-6 w-48 h-36 rounded-2xl border-2 border-white/20 shadow-2xl object-cover z-30 bg-zinc-900"
+			transition:fade
+		></video>
+	{/if}
+
+	<div class="absolute bottom-6 right-58 z-30 flex flex-col items-center gap-2">
+		<div class="h-36 w-1.5 bg-zinc-800 rounded-full overflow-hidden flex flex-col justify-end">
+			<div 
+				class="w-full bg-green-500 transition-all duration-75" 
+				style="height: {Math.min(100, micLevel * 1000)}%"
+			></div>
+		</div>
+		<p class="text-[10px] font-bold text-white/40 uppercase tracking-tighter">Mic</p>
+	</div>
+
 	<Toaster />
 </div>

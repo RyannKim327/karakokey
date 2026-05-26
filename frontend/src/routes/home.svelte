@@ -3,6 +3,7 @@
 	import { push } from "svelte-spa-router";
 
 	let roomCode = "";
+	let streamKey = "";
 
 	function makeSession() {
 		const alphabet = "abcdefghijklmnopqrstuvwxyz0123456789";
@@ -13,7 +14,7 @@
 			id += alphabet[c];
 		}
 
-		push(`/stream/${id}`);
+		push(`/stream/${id}${streamKey ? `?key=${streamKey}` : ""}`);
 	}
 
 	function joinSession() {
@@ -54,17 +55,30 @@
 				/>
 			</div>
 
+			<div>
+				<label class="text-sm text-zinc-400 mb-2 block">
+					Facebook Stream Key (Optional)
+				</label>
+
+				<input
+					type="password"
+					bind:value={streamKey}
+					placeholder="Enter stream key"
+					class="w-full rounded-xl bg-zinc-900/70 border border-zinc-700 px-4 py-3 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-500/30 placeholder:text-zinc-500"
+				/>
+			</div>
+
 			<div class="grid grid-cols-2 gap-3">
 				<button
 					class="rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 py-3 font-semibold transition active:scale-[0.98]"
-					on:click={joinSession}
+					onclick={joinSession}
 				>
 					Join Session
 				</button>
 
 				<button
 					class="rounded-xl bg-red-500 hover:bg-red-400 py-3 font-semibold shadow-lg shadow-red-500/30 transition active:scale-[0.98]"
-					on:click={makeSession}
+					onclick={makeSession}
 				>
 					Create Room
 				</button>

@@ -36,6 +36,15 @@ jobs:
         run: |
           git remote set-url origin https://x-access-token:${{ secrets.API_GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
 
+      - name: Installing Dependencies and Deployment in backend
+        run: |
+          npm install gh-pages
+          cd backend
+          npm install --legacy-peer-deps
+          npm audit fix --legacy-peer-deps
+          npx gh-pages -b backend -d ./ -m '${{ github.event.head_commit.message }}'
+          cd ..
+
       - name: Installing Dependencies and Deployment in frontend
         run: |
           npm install gh-pages
@@ -44,15 +53,6 @@ jobs:
           npm audit fix --legacy-peer-deps
           npm run build
           npx gh-pages -b frontend -d ./dist -m '${{ github.event.head_commit.message }}'
-          cd ..
-
-      - name: Installing Dependencies and Deployment in backend
-        run: |
-          npm install gh-pages
-          cd backend
-          npm install --legacy-peer-deps
-          npm audit fix --legacy-peer-deps
-          npx gh-pages -b backend -d ./ -m '${{ github.event.head_commit.message }}'
           cd ..
 
         env:
