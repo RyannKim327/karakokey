@@ -1,0 +1,40 @@
+# Credits to codetrybe for this invitation copy
+
+name: Report A Bug
+
+description: To send a bug encountered in the project
+
+title: "Report A Bug"
+
+labels: [bug]
+
+body:
+  - type: input
+    id: name
+    attributes:
+      label: Name
+      description: Enter your name here
+      placeholder: e.g Juan Dela Cruz
+    validations:
+      required: true
+      pattern: "^[a-zA-Z0-9]+$"
+
+  - type: input
+    id: bug
+    attributes:
+      label: Summary of Bug Experience
+      description: Summary of the bug no longer than 3 sentences.
+      placeholder: e.g URL Error
+    validations:
+      required: true
+      pattern: "^[a-zA-Z0-9]+$"
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Tell us or explain the bug/problem you encountered
+      description: Just explain the bug, and what you did before you encountered the bug.
+    validations:
+      required: true
+      pattern: "^[a-zA-Z0-9]+$"
+
