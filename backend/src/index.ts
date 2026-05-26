@@ -4,10 +4,14 @@ import { createServer } from "http"
 import { WebSocketServer, WebSocket } from "ws"
 import { spawn } from "child_process"
 import { play, search } from "./script/tubidy"
+import ffmpegStatic from "ffmpeg-static"
 
 const app = express()
 const server = createServer(app)
 const port = process.env.PORT || 3000
+const ffmpegPath = process.env.FFMPEG_PATH || ffmpegStatic || "ffmpeg"
+
+console.log(`Using FFmpeg path: ${ffmpegPath}`)
 
 app.use(cors())
 
@@ -58,17 +62,23 @@ wss.on("connection", (ws: ExtendedWebSocket, req) => {
 	if (url.pathname.startsWith("/live") && streamKey) {
 		console.log(`Starting live stream relay for key: ${streamKey.substring(0, 5)}...`)
 
-		const ffmpeg = spawn("ffmpeg", [
+		const ffmpeg = spawn(ffmpegPath, [
+			"-re",
 			"-i", "-",
 			"-c:v", "libx264",
 			"-preset", "veryfast",
 			"-tune", "zerolatency",
+			"-pix_fmt", "yuv420p",
 			"-c:a", "aac",
 			"-ar", "44100",
 			"-b:a", "128k",
 			"-f", "flv",
 			`rtmps://live-api-s.facebook.com:443/rtmp/${streamKey}`,
 		])
+
+		ffmpeg.on("error", (err) => {
+			console.error("FFmpeg process failed to start:", err)
+		})
 
 		ffmpeg.stderr.on("data", (data) => {
 			console.log(`FFmpeg: ${data}`)
