@@ -1,0 +1,39 @@
+# Credits to codetrybe for this invitation copy
+
+name: Suggest a Feature
+
+description: Share what Idea you want to add in the project
+
+title: "Suggest a Feature"
+
+labels: [suggestion, enhancement]
+
+body:
+  - type: input
+    id: name
+    attributes:
+      label: Name
+      description: Enter your name here
+      placeholder: e.g Juan Dela Cruz
+    validations:
+      required: true
+      pattern: "^[a-zA-Z0-9]+$"
+
+  - type: input
+    id: summary
+    attributes:
+      label: Summary of your Suggestion
+      description: Just make it short no longer than 1 sentence.
+      placeholder: e.g AI Update
+    validations:
+      required: true
+      pattern: "^[a-zA-Z0-9]+$"
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Describe the feature you want to implement.
+      description: Please make your explaination clear and direct, you may use examples if ever too.
+    validations:
+      required: true
+

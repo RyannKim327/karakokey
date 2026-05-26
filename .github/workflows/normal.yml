@@ -1,0 +1,63 @@
+name: Normalize Issue Title Based on Labels
+
+on:
+  issues:
+    types: [opened, edited, labeled, unlabeled]
+
+permissions:
+  issues: write
+
+jobs:
+  normalize-title:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Normalize issue title
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue = context.payload.issue;
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+
+            let originalTitle = issue.title;
+
+            // ---- CONFIG ----
+            const ALLOW_SPACES = true;
+            // -----------------
+
+            // Detect labels
+            const labels = issue.labels.map(l => l.name.toLowerCase());
+
+            const isBug = labels.includes("bug");
+
+            const prefix = isBug ? "[BUG]: " : "[FEAT]: ";
+
+            // Strip existing known prefixes
+            let title = originalTitle
+              .replace(/^\[BUG\]:\s*/i, "")
+              .replace(/^\[FEAT\]:\s*/i, "");
+
+            // Normalize text
+            if (ALLOW_SPACES) {
+              title = title.replace(/[^a-zA-Z0-9 ]+/g, "");
+              title = title.trim().replace(/\s+/g, " ");
+            } else {
+              title = title.replace(/[^a-zA-Z0-9]+/g, "");
+            }
+
+            const newTitle = prefix + title;
+
+            // Update only if needed
+            if (newTitle !== originalTitle) {
+              await github.rest.issues.update({
+                owner,
+                repo,
+                issue_number: issue.number,
+                title: newTitle
+              });
+
+              console.log(`Title updated: ${newTitle}`);
+            } else {
+              console.log("No change needed.");
+            }
