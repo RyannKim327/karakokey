@@ -3,8 +3,9 @@ import cors from "cors"
 import { createServer } from "http"
 import { WebSocketServer, WebSocket } from "ws"
 import { spawn } from "child_process"
-import { play, search } from "./script/tubidy"
 import ffmpegStatic from "ffmpeg-static"
+import SaveFromNet from "./script/savefrom"
+import axios from "axios"
 
 const app = express()
 const server = createServer(app)
@@ -24,23 +25,15 @@ app.get("/search", async (req, res) => {
 	if (typeof q !== "string") {
 		return res.status(400).json({ error: "Please provide a valid search query" })
 	}
-	const lists = await search(q)
-	res.json(lists)
+
+	const { data } = await axios.get(`https://yt-dlp-stream.onrender.com/api/v3/q?=${q}%20karaoke`)
+	res.json(data.results)
 })
 
 app.get("/play", async (req, res) => {
 	const id = req.query.id
-	if (typeof id !== "string") {
-		return res.status(400).send("Missing or invalid id")
-	}
-	try {
-		// await play(id, res)
-		const p = await play(id)
-		res.json(p)
-	} catch (err) {
-		console.error(err)
-		res.status(500).send("Failed to stream video")
-	}
+	const save = await SaveFromNet(id)
+	res.json(save)
 })
 
 // 404 handler
