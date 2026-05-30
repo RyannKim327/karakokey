@@ -1,3 +1,4 @@
+import Chromium from "@sparticuz/chromium";
 import * as pup from "puppeteer-extra";
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 
@@ -10,10 +11,8 @@ export default async function SaveFromNet(videoID: string) {
 	try {
 		browser = await puppet.launch({
 			headless: true,
-			args: [
-				'--no-sandbox',
-				'--disable-setuid-sandbox'
-			]
+			args: Chromium.args,
+			executablePath: await Chromium.executablePath(),
 		})
 		const page = await browser.newPage()
 
