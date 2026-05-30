@@ -33,23 +33,23 @@ export default async function SaveFromNet(videoID: string) {
 		} catch (e) {
 			const isError = await page.$('.error-box')
 			if (isError) {
-				const error = await page.$eval('.error-box', el => el.innerText.trim())
+				const error = await page.$eval('.error-box', el => (el as HTMLElement).innerText.trim())
 				throw new Error(error)
 			}
 			throw new Error('Timeout waiting for download links. The site might be slow or the URL might be invalid')
 		}
 
 		const data = await page.evaluate(() => {
-			const title = document.querySelector('.info-box .title')?.innerText.trim() ||
-				document.querySelector('.name')?.innerText?.trim();
-			const thumbnail = document.querySelector('.info-box .thumb img')?.src ||
-				document.querySelector('.img-video img')?.src;
-			const duration = document.querySelector('.info-box .duration')?.innerText.trim() ||
-				document.querySelector('.duration')?.innerText?.trim();
+			const title = (document.querySelector('.info-box .title') as HTMLElement)?.innerText.trim() ||
+				(document.querySelector('.name') as HTMLElement)?.innerText?.trim();
+			const thumbnail = (document.querySelector('.info-box .thumb img') as HTMLImageElement)?.src ||
+				(document.querySelector('.img-video img') as HTMLImageElement)?.src;
+			const duration = (document.querySelector('.info-box .duration') as HTMLElement)?.innerText.trim() ||
+				(document.querySelector('.duration') as HTMLElement)?.innerText?.trim();
 
 			const links = Array.from(document.querySelectorAll('.link-download')).map(link => ({
 				name: title, //(link.getAttribute('title') || link.innerText?.trim() || 'Download') && !link.innerText.trim().includes("without audio"),
-				subname: link.innerText.trim(),
+				subname: (link as HTMLElement).innerText.trim(),
 				url: link.getAttribute('href'),
 				type: link.getAttribute('data-type') || 'mp4'
 			})).filter(l => l.url && l.url !== '#' && (l.type.toLowerCase().includes("mp4") && !l.type.toLowerCase().includes("dash")));
@@ -65,7 +65,7 @@ export default async function SaveFromNet(videoID: string) {
 	} catch (e) {
 		if (browser) await browser.close()
 		return {
-			error: e.message
+			error: e instanceof Error ? e.message : String(e)
 		}
 	}
 }
