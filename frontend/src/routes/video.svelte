@@ -246,14 +246,15 @@
 		if (sources.length > 0) {
 			try {
 				const { data } = await axios.get(`${API_HOST}/play?id=${link}`);
-				if (!data.url) {
+				console.log(data);
+				if (!data.url || (Array.isArray(data.url) && data.url.length === 0)) {
 					toast(data.error ?? "No Data Found", { position: "bottom-right" });
 					nextSong();
 					return;
 				}
-				source = data.url;
+				source = Array.isArray(data.url) ? data.url[0].url : data.url;
 				setTimeout(() => {
-					video?.play();
+					video?.play()?.catch((e) => console.error("Video play failed:", e));
 				}, 500);
 
 				if (micStream) audioAnalyzer(micStream);
@@ -274,6 +275,8 @@
 		sources = sources.slice(1); // reactive-safe removal
 		setTimeout(() => {
 			if (sources.length > 0) {
+				console.log("Video");
+				console.log(sources);
 				id = sources[0].url;
 				getUrl(id);
 			} else {
@@ -547,13 +550,17 @@
 	{/if}
 
 	<div class="absolute bottom-6 right-58 z-30 flex flex-col items-center gap-2">
-		<div class="h-36 w-1.5 bg-zinc-800 rounded-full overflow-hidden flex flex-col justify-end">
-			<div 
-				class="w-full bg-green-500 transition-all duration-75" 
+		<div
+			class="h-36 w-1.5 bg-zinc-800 rounded-full overflow-hidden flex flex-col justify-end"
+		>
+			<div
+				class="w-full bg-green-500 transition-all duration-75"
 				style="height: {Math.min(100, micLevel * 1000)}%"
 			></div>
 		</div>
-		<p class="text-[10px] font-bold text-white/40 uppercase tracking-tighter">Mic</p>
+		<p class="text-[10px] font-bold text-white/40 uppercase tracking-tighter">
+			Mic
+		</p>
 	</div>
 
 	<Toaster />
