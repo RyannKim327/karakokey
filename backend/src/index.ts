@@ -32,6 +32,9 @@ app.get("/search", async (req, res) => {
 
 app.get("/play", async (req, res) => {
 	const id = req.query.id
+	if (typeof id !== "string") {
+		return res.status(400).json({ error: "Please provide a valid id" })
+	}
 	const save = await SaveFromNet(id)
 	res.json(save)
 })
