@@ -164,7 +164,7 @@
 								onclick={() =>
 									send({
 										title: song.title,
-										url: song.id,
+										url: song.video_id,
 									})}
 							>
 								+
