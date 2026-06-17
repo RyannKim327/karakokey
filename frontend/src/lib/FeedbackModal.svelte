@@ -33,7 +33,7 @@
       await client.post(
         `https://api-mpop-backend.onrender.com/feedback/submit`,
         {
-          name,
+          userId: name,
           message,
           application: "KaraKokey",
         },
