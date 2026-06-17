@@ -25,8 +25,10 @@
   },
   "dependencies": {
     "axios": "^1.16.1",
+    "axios-cookiejar-support": "^7.0.0",
     "pitchfinder": "^2.3.4",
     "svelte-french-toast": "^1.2.0",
-    "svelte-spa-router": "^5.1.0"
+    "svelte-spa-router": "^5.1.0",
+    "tough-cookie": "^6.0.1"
   }
 }
