@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: karakokey-backend
+    env: docker
+    region: singapore
+    plan: free
+    dockerContext: ./backend
+    dockerfilePath: backend/Dockerfile
+    envVars:
+      - key: PORT
+        value: 3000
+      - key: NODE_ENV
+        value: production
+      # Increase memory limit if needed (Puppeteer can be memory intensive)
+      - key: WEB_CONCURRENCY
+        value: 1
