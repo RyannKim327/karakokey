@@ -245,14 +245,14 @@
 		paused = false;
 		if (sources.length > 0) {
 			try {
-				const { data } = await axios.get(`${API_HOST}/play?id=${link}`);
+				const { data } = await axios.get(`https://yt-dlp-stream.onrender.com/api/v2/q?=https://www.youtube.com/watch?v=${link}`);
 				console.log(data);
-				if (!data.url || (Array.isArray(data.url) && data.url.length === 0)) {
+				if (!data.media?.mp4) {
 					toast(data.error ?? "No Data Found", { position: "bottom-right" });
 					nextSong();
 					return;
 				}
-				source = Array.isArray(data.url) ? data.url[0].url : data.url;
+				source = data.media.mp4;
 				setTimeout(() => {
 					video?.play()?.catch((e) => console.error("Video play failed:", e));
 				}, 500);
@@ -260,6 +260,8 @@
 				if (micStream) audioAnalyzer(micStream);
 			} catch (e) {
 				console.log(e);
+				toast.error("Failed to load video");
+				nextSong();
 			}
 		} else {
 			source = "";

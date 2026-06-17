@@ -4,7 +4,6 @@ import { createServer } from "http"
 import { WebSocketServer, WebSocket } from "ws"
 import { spawn } from "child_process"
 import ffmpegStatic from "ffmpeg-static"
-import SaveFromNet from "./script/savefrom"
 import axios from "axios"
 
 const app = express()
@@ -28,15 +27,6 @@ app.get("/search", async (req, res) => {
 
 	const { data } = await axios.get(`https://yt-dlp-stream.onrender.com/api/v3/q?=${q}%20karaoke`)
 	res.json(data.results)
-})
-
-app.get("/play", async (req, res) => {
-	const id = req.query.id
-	if (typeof id !== "string") {
-		return res.status(400).json({ error: "Please provide a valid id" })
-	}
-	const save = await SaveFromNet(id)
-	res.json(save)
 })
 
 // 404 handler
