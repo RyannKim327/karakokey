@@ -169,11 +169,12 @@
 
   function generateScore() {
     video?.pause();
-    if (totalFrames > 10) {
+    const startValue = 30;
+    if (totalFrames > startValue) {
       const ratio = framesWithPitch / totalFrames;
       score = Math.min(100, Math.floor(ratio * 300));
     } else {
-      score = Math.floor(Math.random() * 20) + 10;
+      score = Math.floor(Math.random() * (100 - startValue)) + startValue;
     }
 
     showScore = true;
@@ -230,10 +231,11 @@
       for (let i = 0; i < buffer.length; i++) {
         sum += buffer[i] * buffer[i];
       }
+
       micLevel = Math.sqrt(sum / buffer.length);
 
       const pitch = yin(buffer);
-      if (pitch && pitch > 50 && pitch < 2000) framesWithPitch++;
+      if (pitch && pitch > 50 && pitch < 3000) framesWithPitch++;
       totalFrames++;
       requestAnimationFrame(tick);
     }
@@ -248,7 +250,6 @@
         const { data } = await axios.get(
           `https://yt-dlp-stream.onrender.com/api/v2/q?=${encodeURI("https://youtube.com/watch?v=" + link)}`,
         );
-        console.log(data);
         if (!data.media?.mp4) {
           toast(data.error ?? "No Data Found", { position: "bottom-right" });
           nextSong();
@@ -279,8 +280,6 @@
     sources = sources.slice(1); // reactive-safe removal
     setTimeout(() => {
       if (sources.length > 0) {
-        console.log("Video");
-        console.log(sources);
         id = sources[0].url;
         getUrl(id);
       } else {
