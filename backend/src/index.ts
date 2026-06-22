@@ -11,8 +11,6 @@ const server = createServer(app)
 const port = process.env.PORT || 3000
 const ffmpegPath = process.env.FFMPEG_PATH || ffmpegStatic || "ffmpeg"
 
-console.log(`Using FFmpeg path: ${ffmpegPath}`)
-
 app.use(cors())
 app.use(express.json())
 

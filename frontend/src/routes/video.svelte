@@ -34,6 +34,8 @@
   let started = $state(false);
   let framesWithPitch = $state(0);
   let totalFrames = $state(0);
+  let nextSourceUrl = $state<string | null>(null); // Cache for next video URL
+  let isPrefetching = $state(false);
   // These don't need to be reactive — no template binding
   let analyzerActive = false;
   let micStream: MediaStream | null = null;
@@ -256,6 +258,12 @@
           return;
         }
         source = data.media.mp4;
+
+        // Start prefetching the next video in queue
+        if (sources.length > 1) {
+          prefetchNextVideo(sources[1].url);
+        }
+
         setTimeout(() => {
           video?.play()?.catch((e) => console.error("Video play failed:", e));
         }, 500);
@@ -271,6 +279,28 @@
     }
   }
 
+  async function prefetchNextVideo(link: string) {
+    // Don't prefetch if already prefetching or if no next video
+    if (isPrefetching || !link || sources.length < 2) return;
+
+    isPrefetching = true;
+    try {
+      const { data } = await axios.get(
+        `https://yt-dlp-stream.onrender.com/api/v2/q?=${encodeURI("https://youtube.com/watch?v=" + link)}`,
+      );
+      if (data.media?.mp4) {
+        nextSourceUrl = data.media.mp4;
+        // Optional: Log for debugging
+        // console.log('Prefetched next video URL:', nextSourceUrl);
+      }
+    } catch (e) {
+      console.log('Failed to prefetch next video:', e);
+      // Keep nextSourceUrl as null so we'll fetch it normally when needed
+    } finally {
+      isPrefetching = false;
+    }
+  }
+
   function nextSong() {
     paused = true;
     video?.pause();
@@ -281,10 +311,22 @@
     setTimeout(() => {
       if (sources.length > 0) {
         id = sources[0].url;
-        getUrl(id);
+        // Use prefetched URL if available, otherwise fetch normally
+        if (nextSourceUrl) {
+          source = nextSourceUrl;
+          nextSourceUrl = null; // Clear the prefetched URL
+          // Start prefetching the new next video (now at index 1)
+          if (sources.length > 1) {
+            prefetchNextVideo(sources[1].url);
+          }
+          video?.play()?.catch((e) => console.error("Video play failed:", e));
+        } else {
+          getUrl(id);
+        }
       } else {
         source = "";
         id = "";
+        nextSourceUrl = null; // Clear prefetched URL when queue is empty
         started = false;
       }
     }, 500);
@@ -302,10 +344,22 @@
     setTimeout(() => {
       if (sources.length > 0) {
         id = sources[0].url;
-        getUrl(id);
+        // Use prefetched URL if available, otherwise fetch normally
+        if (nextSourceUrl) {
+          source = nextSourceUrl;
+          nextSourceUrl = null; // Clear the prefetched URL
+          // Start prefetching the new next video (now at index 1)
+          if (sources.length > 1) {
+            prefetchNextVideo(sources[1].url);
+          }
+          video?.play()?.catch((e) => console.error("Video play failed:", e));
+        } else {
+          getUrl(id);
+        }
       } else {
         source = "";
         id = "";
+        nextSourceUrl = null; // Clear prefetched URL when queue is empty
         started = false;
       }
     }, 5000); // aligns with generateScore's hide timeout
@@ -426,6 +480,7 @@
       src={source}
       autoplay={true}
       controls={false}
+      preload="auto"
       onpause={() => {
         if (!paused && source) video?.play();
       }}
